@@ -83,3 +83,87 @@ print("has excuted pcanet.transform")
 print(X_train)
 print(X_train.shape)
 
+# Fit any models you like
+# add confusion_matrix
+X_test = pcanet.transform(images)
+
+def normalize(x): return x / (x)
+
+def build_confusion_matrix(representations):
+    n_frames = len(representations)
+    confusion_matrix = np.zeros((n_frames, n_frames))
+
+    for i in range(n_frames):
+        for j in range(n_frames):   
+            confusion_matrix[i][j] = np.dot(representations[i],representations[j]) / (np.linalg.norm(representations[i]) * np.linalg.norm(representations[j]))
+            
+    return confusion_matrix
+
+confusion_matrix = build_confusion_matrix(X_test)
+print (len(representations)) 
+print (confusion_matrix)
+
+#load the ground truth
+GROUND_TRUTH_PATH = os.path.expanduser(
+    '/home/lenovo/TF/test/NewCollegeGroundTruth.mat')
+
+gt_data = sio.loadmat(GROUND_TRUTH_PATH)['truth'][::2, ::2]
+gt_data = gt_data.T + gt_data + np.eye(1073) # the number of len(representations)
+print(gt_data)
+
+# Set up plotting
+
+default_heatmap_kwargs = dict(
+    xticklabels=False,
+    yticklabels=False,
+    square=True,
+    cbar=True,)
+
+fig, ax1 = plt.subplots(ncols=1)
+fig, ax2 = plt.subplots(ncols=1)
+
+# Plot ground truth
+sns.heatmap(gt_data,
+    ax=ax1,
+    **default_heatmap_kwargs)
+ax1.set_title('Ground truth')
+
+# Only look at the lower triangle
+# confusion_matrix = np.tril(confusion_matrix, 0)
+
+sns.heatmap(confusion_matrix,
+           ax=ax2,
+           **default_heatmap_kwargs)
+# ax2.set_title('CNN')
+ax2.set_title('PCANet')
+
+# precision recall curve
+prec_recall_curve = []
+
+for thresh in np.arange(0, 1, 0.02):
+    # precision: fraction of retrieved instances that are relevant
+    # recall: fraction of relevant instances that are retrieved
+    true_positives = (confusion_matrix > thresh) & (gt_data == 1)
+    all_positives = (confusion_matrix > thresh)
+
+    try:
+        precision = float(np.sum(true_positives)) / np.sum(all_positives)
+        recall = float(np.sum(true_positives)) / np.sum(gt_data == 1)
+
+        prec_recall_curve.append([thresh, precision, recall])
+    except:
+        break
+
+prec_recall_curve = np.array(prec_recall_curve)
+
+plt.plot(prec_recall_curve[:, 1], prec_recall_curve[:, 2])
+
+for thresh, prec, rec in prec_recall_curve[ 30: : 5]:
+    plt.annotate(
+        str(thresh),
+        xy=(prec, rec),
+        xytext=(8, 8),
+        textcoords='offset points')
+
+plt.xlabel('Precision', fontsize=14)
+plt.ylabel('Recall', fontsize=14)
